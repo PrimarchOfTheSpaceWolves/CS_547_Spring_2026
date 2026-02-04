@@ -46,6 +46,8 @@ def main():
         exit(1)
     
     key = -1
+    sf = 3
+    last_frame = None
     while key == -1:
         _, frame = videocap.read()
         
@@ -53,9 +55,27 @@ def main():
         frame_index = int(videocap.get(cv2.CAP_PROP_POS_FRAMES))
         if frame_cnt == frame_index:
             videocap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            
+        if last_frame is None:
+            last_frame = np.copy(frame)
+        
+        output = (frame.astype("float64")*0.5 + last_frame.astype("float64")*0.5)
+        output = cv2.convertScaleAbs(output)
+        
+        if frame_index % 10 == 0:
+            last_frame = np.copy(frame)
+        
+        cv2.imshow("OUTPUT", output)
+         
+        #frame = cv2.resize(frame, dsize=(0,0), fx=1.0/sf, fy=1.0/sf)
+        #frame = cv2.resize(frame, dsize=(0,0),
+        #                   fx=sf, fy=sf,
+        #                   interpolation=cv2.INTER_NEAREST)   
+        sf += 0.1
+        print(sf)
         
         cv2.imshow("NOICE", frame)
-        key = cv2.waitKey(500) #30)
+        key = cv2.waitKey(30)
     videocap.release()
 
 if __name__ == "__main__":
