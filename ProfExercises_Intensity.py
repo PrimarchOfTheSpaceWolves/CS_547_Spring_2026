@@ -18,6 +18,7 @@ class IntTransform(Enum):
     NEGATIVE = "Negative"
     SLICE = "Intensity Slicing"
     CONTRAST = "Contrast Stretching"
+    HISTEQ = "Histogram Equalization"
     
 def do_transform(image, chosenT):
     if chosenT == IntTransform.ORIGINAL:
@@ -41,7 +42,11 @@ def do_transform(image, chosenT):
         lut = one_inter(r)
         transform = np.clip(np.round(lut),0,255).astype("uint8")
         output = transform[image]
-        
+    elif chosenT == IntTransform.HISTEQ:
+        output = cv2.equalizeHist(image)
+        transform = np.zeros(256, dtype="uint8")
+        transform[image.flatten()] = output.flatten()
+                
     return output, transform
     
 def create_transform_plot(transform, title="Intensity Transform"):
