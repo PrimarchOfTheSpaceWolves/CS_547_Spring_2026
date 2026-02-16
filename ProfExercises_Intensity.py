@@ -12,6 +12,8 @@ import timm
 import torchvision
 from enum import Enum
 import matplotlib.pyplot as plt
+from torch import nn
+from torchvision.transforms import v2
 
 class IntTransform(Enum):
     ORIGINAL = "Original"
@@ -81,6 +83,23 @@ def update_transform_plot(transform, fig, line, fill):
 ###############################################################################
 
 def main():
+    
+    conv_layer = nn.Conv2d(in_channels=3, out_channels=1, 
+                           kernel_size=1, bias=False)
+    model = nn.Sequential(conv_layer)
+    print(model)
+        
+    device = "cuda" # mps # cpu
+    model = model.to(device)
+    
+    loss_fn = nn.MSELoss() # L1Loss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    
+    data_transform = v2.Compose([
+        v2.ToImage(),
+        v2.ToDtype(dtype=torch.float32, scale=True)        
+    ])
+        
     
     image = np.array([[0,1,2,3],
                       [3,2,1,0],
@@ -157,9 +176,38 @@ def main():
             _, image = camera.read()
             
             grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            output, transform = do_transform(grayscale, chosenT)
+                        
+            gray_channel = np.expand_dims(grayscale, axis=-1)            
+            desired_output = data_transform(gray_channel)
+            desired_output = torch.unsqueeze(desired_output, axis=0)
             
-            update_transform_plot(transform, tfig, tline, tfill)
+            color = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            data_input = data_transform(color)
+            data_input = torch.unsqueeze(data_input, axis=0)
+            
+            model.train()
+            data_input = data_input.to(device)
+            desired_output = desired_output.to(device)
+            pred_output = model(data_input)
+            loss = loss_fn(pred_output, desired_output)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            
+            out_image = pred_output.detach().cpu()
+            out_image = out_image.numpy()
+            out_image = out_image[0]
+            out_image = np.transpose(out_image, [1,2,0])
+            
+            cv2.imshow("PREDICTED", out_image)
+            
+            print("Weights:", conv_layer.weight.detach().cpu().numpy())
+            
+            #print(type(gray_channel), gray_channel.shape)
+            #print(type(desired_output), desired_output.shape)
+            
+            #output, transform = do_transform(grayscale, chosenT)
+            #update_transform_plot(transform, tfig, tline, tfill)
             
             # Show the image
             cv2.imshow(windowName, grayscale)
