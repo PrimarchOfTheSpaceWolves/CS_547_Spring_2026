@@ -11,6 +11,8 @@ import sklearn
 import timm
 import torchvision
 from enum import Enum
+from torch import nn
+from torchvision.transforms import v2
 
 class FilterType(Enum):
     BOX = "Box Filter"
@@ -73,6 +75,23 @@ def do_filter(image, filter_size, filter_type):
 
 def main(): 
     
+    conv_layer = nn.Conv2d(in_channels=1, out_channels=1, 
+                           kernel_size=3, bias=False,
+                           padding="same")
+    model = nn.Sequential(conv_layer)
+    print(model)
+        
+    device = "cuda" # mps # cpu
+    model = model.to(device)
+    
+    loss_fn = nn.MSELoss() # L1Loss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    
+    data_transform = v2.Compose([
+        v2.ToImage(),
+        v2.ToDtype(dtype=torch.float32, scale=True)        
+    ])
+    
     print("Filtering Options:")
     for index, item in enumerate(list(FilterType)):
         print(index, "-", item.value)
@@ -131,6 +150,39 @@ def main():
             grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             output = do_filter(grayscale, filter_size, filter_type)
             
+            gray_channel = np.expand_dims(grayscale, axis=-1)            
+            data_input = data_transform(gray_channel)
+            data_input = torch.unsqueeze(data_input, axis=0)
+            
+            sbx = cv2.Sobel(grayscale, 
+                        ddepth=cv2.CV_64F, 
+                        dx=1, dy=0, 
+                        ksize=filter_size, 
+                        scale=0.25)                        
+            output_channel = np.expand_dims(sbx, axis=-1) 
+            desired_output = data_transform(output_channel)
+            desired_output = torch.unsqueeze(desired_output, axis=0)
+            
+            model.train()
+            data_input = data_input.to(device)
+            desired_output = desired_output.to(device)
+            pred_output = model(data_input)
+            loss = loss_fn(pred_output, desired_output)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            
+            out_image = pred_output.detach().cpu()
+            out_image = out_image.numpy()
+            out_image = out_image[0]
+            out_image = np.transpose(out_image, [1,2,0])
+            
+            out_image = out_image*0.5 + 1.0
+            
+            cv2.imshow("PREDICTED", out_image)
+                        
+            print("Weights:", conv_layer.weight.detach().cpu().numpy())
+               
             # Show the image
             cv2.imshow(windowName, grayscale)
             cv2.imshow("OUTPUT", output)
