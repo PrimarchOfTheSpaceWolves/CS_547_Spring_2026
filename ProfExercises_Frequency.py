@@ -11,6 +11,27 @@ import sklearn
 import timm
 import torchvision
 
+def to_numpy_complex(complex_image):
+    return complex_image[:,:,0] + 1j*complex_image[:,:,1]
+
+def to_complex_image(complex_data):
+    return np.stack([
+        np.real(complex_data), np.imag(complex_data)
+    ], axis=2)
+
+def complex_to_polar(complex_data):
+    mag = np.abs(complex_data)
+    phase = np.angle(complex_data)
+    return mag, phase
+
+def make_simple_complex(length=600):
+    hl = length/2
+    complex_data = np.zeros((length,length), dtype="complex")
+    values = np.arange(-hl, hl, 1)
+    complex_data[:] = values
+    complex_data += np.reshape(1j*values, (-1, 1))    
+    return complex_data
+
 def do_frequency(image, mask_image):
     output = np.copy(image)
     # TODO
@@ -21,6 +42,23 @@ def do_frequency(image, mask_image):
 ###############################################################################
 
 def main():  
+    
+    complex_data = make_simple_complex(600)
+    mag, phase = complex_to_polar(complex_data)
+    complex_image = to_complex_image(complex_data)
+    
+    cv2.normalize(complex_image, complex_image, norm_type=cv2.NORM_MINMAX)
+    cv2.normalize(mag, mag, norm_type=cv2.NORM_MINMAX)
+    cv2.normalize(phase, phase, norm_type=cv2.NORM_MINMAX)
+    
+    cv2.imshow("Original X", complex_image[...,0])
+    cv2.imshow("Original Y", complex_image[...,1])
+    cv2.imshow("Magnitude", mag)
+    cv2.imshow("Phase", phase)
+    cv2.waitKey(-1)
+    cv2.destroyAllWindows()    
+    
+    exit()
     
     mask_image = None
           
